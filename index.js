@@ -5,6 +5,7 @@ import connectDB from "./config/db.js";
 import testRoutes from "./routes/testRoutes.js";
 import transactionRoutes from "./routes/transactionRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
+import budgetRoutes from "./routes/budgetRoutes.js";
 
 dotenv.config(); // Loads env variables
 connectDB(); // Calls function to connect the database
@@ -16,6 +17,7 @@ app.use(express.json()); // JSON body parsing middleware
 app.use("/api", testRoutes);
 app.use("/api", transactionRoutes);
 app.use("/api", categoryRoutes);
+app.use("/api", budgetRoutes);
 
 const PORT = process.env.PORT || 8028; // Server port
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
