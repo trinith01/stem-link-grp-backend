@@ -61,7 +61,41 @@ export const getCategories = async (req, res) => {
       query.type = type;
     }
 
-    const categories = await Category.find(query).sort({ name: 1 });
+    let categories = await Category.find(query).sort({ name: 1 });
+
+    // If no categories exist, create default ones
+    if (categories.length === 0) {
+      const defaultCategories = [
+        // Expense Categories
+        { name: "Food & Dining", type: "expense" },
+        { name: "Transportation", type: "expense" },
+        { name: "Healthcare", type: "expense" },
+        { name: "Shopping", type: "expense" },
+        { name: "Entertainment", type: "expense" },
+        { name: "Bills & Utilities", type: "expense" },
+        { name: "Housing", type: "expense" },
+        { name: "Education", type: "expense" },
+        { name: "Personal Care", type: "expense" },
+        { name: "Travel", type: "expense" },
+        { name: "Insurance", type: "expense" },
+        { name: "Taxes", type: "expense" },
+        { name: "Gifts & Donations", type: "expense" },
+        { name: "Business Expenses", type: "expense" },
+        { name: "Other Expenses", type: "expense" },
+        
+        // Income Categories
+        { name: "Salary", type: "income" },
+        { name: "Freelance", type: "income" },
+        { name: "Investment", type: "income" },
+        { name: "Business", type: "income" },
+        { name: "Gifts", type: "income" },
+        { name: "Refunds", type: "income" },
+        { name: "Other Income", type: "income" }
+      ];
+
+      await Category.insertMany(defaultCategories);
+      categories = await Category.find(query).sort({ name: 1 });
+    }
 
     const formattedCategories = categories.map(category => ({
       id: category.id,
