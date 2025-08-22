@@ -15,6 +15,7 @@ const globalErrorHandlingMiddleware = (error, req, res, next) => {
   } else if (error instanceof ValidationError) {
     res.status(error.statusCode).json({
       message: error.message,
+      errors: error.errors || []
     });
   } else if (error instanceof UnauthorizedError) {
     res.status(error.statusCode).json({
