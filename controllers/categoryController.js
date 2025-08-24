@@ -1,4 +1,5 @@
 import Category from "../models/Category.js";
+import { defaultCategories } from "../constants/default-categories.js";
 
 // Helper function to validate category data
 const validateCategoryData = (data) => {
@@ -55,7 +56,16 @@ export const createCategory = async (req, res) => {
 export const getCategories = async (req, res) => {
   try {
     const { type } = req.query;
-    
+
+    // Seed defaults for user if none exist at all
+    const seeded = defaultCategories.map((c) => ({
+      ...c,
+      name: c.name.trim(),
+      nameLower: c.name.trim().toLowerCase(),
+      userId,
+    }));
+    // Adds array of categories
+    await Category.insertMany(seeded);
     let query = {};
     if (type && ["income", "expense"].includes(type)) {
       query.type = type;
