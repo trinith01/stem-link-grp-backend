@@ -1,5 +1,6 @@
 import Category from "../models/Category.js";
 import { defaultCategories } from "../constants/default-categories.js";
+import { formatCategory } from "../utils/formatters/format-category.js";
 
 // Helper function to validate category data
 const validateCategoryData = (data) => {
@@ -28,13 +29,8 @@ export const createCategory = async (req, res) => {
     }
 
     const category = await Category.create(req.body);
-    
-    res.status(201).json({
-      id: category.id,
-      name: category.name,
-      type: category.type,
-      message: "Category created successfully"
-    });
+
+    res.status(201).json({ ...formatCategory(category), message: "Category created successfully" });
   } catch (error) {
     console.error("Create category error:", error);
     
@@ -73,47 +69,7 @@ export const getCategories = async (req, res) => {
 
     let categories = await Category.find(query).sort({ name: 1 });
 
-    // If no categories exist, create default ones
-    if (categories.length === 0) {
-      const defaultCategories = [
-        // Expense Categories
-        { name: "Food & Dining", type: "expense" },
-        { name: "Transportation", type: "expense" },
-        { name: "Healthcare", type: "expense" },
-        { name: "Shopping", type: "expense" },
-        { name: "Entertainment", type: "expense" },
-        { name: "Bills & Utilities", type: "expense" },
-        { name: "Housing", type: "expense" },
-        { name: "Education", type: "expense" },
-        { name: "Personal Care", type: "expense" },
-        { name: "Travel", type: "expense" },
-        { name: "Insurance", type: "expense" },
-        { name: "Taxes", type: "expense" },
-        { name: "Gifts & Donations", type: "expense" },
-        { name: "Business Expenses", type: "expense" },
-        { name: "Other Expenses", type: "expense" },
-        
-        // Income Categories
-        { name: "Salary", type: "income" },
-        { name: "Freelance", type: "income" },
-        { name: "Investment", type: "income" },
-        { name: "Business", type: "income" },
-        { name: "Gifts", type: "income" },
-        { name: "Refunds", type: "income" },
-        { name: "Other Income", type: "income" }
-      ];
-
-      await Category.insertMany(defaultCategories);
-      categories = await Category.find(query).sort({ name: 1 });
-    }
-
-    const formattedCategories = categories.map(category => ({
-      id: category.id,
-      name: category.name,
-      type: category.type
-    }));
-
-    res.json(formattedCategories);
+    res.json(categories.map(formatCategory));
   } catch (error) {
     console.error("Get categories error:", error);
     res.status(500).json({ 
@@ -134,13 +90,7 @@ export const getCategoryById = async (req, res) => {
       return res.status(404).json({ message: "Category not found" });
     }
 
-    const response = {
-      id: category.id,
-      name: category.name,
-      type: category.type
-    };
-
-    res.json(response);
+    res.json(formatCategory(category));
   } catch (error) {
     console.error("Get category by ID error:", error);
     res.status(500).json({ 
@@ -173,14 +123,7 @@ export const updateCategory = async (req, res) => {
       return res.status(404).json({ message: "Category not found" });
     }
 
-    res.json({ 
-      message: "Category updated successfully",
-      category: {
-        id: category.id,
-        name: category.name,
-        type: category.type
-      }
-    });
+    res.json({ message: "Category updated successfully", category: formatCategory(category) });
   } catch (error) {
     console.error("Update category error:", error);
     
@@ -231,14 +174,7 @@ export const getCategoriesByType = async (req, res) => {
     }
 
     const categories = await Category.find({ type }).sort({ name: 1 });
-
-    const formattedCategories = categories.map(category => ({
-      id: category.id,
-      name: category.name,
-      type: category.type
-    }));
-
-    res.json(formattedCategories);
+    res.json(categories.map(formatCategory));
   } catch (error) {
     console.error("Get categories by type error:", error);
     res.status(500).json({ 
