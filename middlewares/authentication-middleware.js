@@ -11,7 +11,7 @@ const isAuthenticated = (req, res, next) => {
 };
 
 // Helper to get user's Clerk userId from request
-export const getCurrentUserId = (req) => {
+const getCurrentUserId = (req) => {
   return req.auth().userId;
 };
 

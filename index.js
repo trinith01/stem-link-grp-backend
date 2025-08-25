@@ -14,7 +14,6 @@ connectDB(); // Calls function to connect the database
 const app = express(); // Express app instance
 app.use(cors()); // Enable CORS for all routes
 app.use(clerkMiddleware()); // Reads JWT token from request & sets auth object in request
-app.use(cors()); // CORS Middleware
 app.use(express.json()); // JSON body parsing middleware
 
 // Routes

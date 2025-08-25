@@ -1,216 +1,107 @@
+import { getCurrentUserId } from "../middlewares/authentication-middleware.js";
 import Transaction from "../models/Transaction.js";
-
-// Helper function to validate transaction data
-const validateTransactionData = (data) => {
-  const errors = [];
-  
-  if (!data.type || !["income", "expense"].includes(data.type)) {
-    errors.push("Type must be either 'income' or 'expense'");
-  }
-  
-  if (!data.amount || typeof data.amount !== 'number' || data.amount <= 0) {
-    errors.push("Amount must be a positive number");
-  }
-  
-  if (!data.categoryId) {
-    errors.push("Category ID is required");
-  }
-  
-  if (!data.userId) {
-    errors.push("User ID is required");
-  }
-  
-  return errors;
-};
+import { assertCategoryOwnership } from "../utils/ownership/assert-category-ownership.js";
+import NotFoundError from "../domain/errors/not-found-error.js";
+import ValidationError from "../domain/errors/validation-error.js";
+import { validateTransactionData } from "../utils/validation/validate-transaction-data.js";
 
 // Create a new transaction
-export const createTransaction = async (req, res) => {
+export const createTransaction = async (req, res, next) => {
   try {
+    const userId = getCurrentUserId(req);
+
     const validationErrors = validateTransactionData(req.body);
     if (validationErrors.length > 0) {
-      return res.status(400).json({ 
-        message: "Validation failed", 
-        errors: validationErrors 
-      });
+      throw new ValidationError("Validation failed", validationErrors);
     }
+
+    // Ensure category belongs to this user
+    await assertCategoryOwnership(userId, req.body.categoryId);
 
     const transactionData = {
       ...req.body,
-      date: req.body.date ? new Date(req.body.date) : new Date()
+      userId,
+      date: req.body.date ? new Date(req.body.date) : new Date(),
     };
 
     const transaction = await Transaction.create(transactionData);
-    
-    // Populate category information for response
-    await transaction.populate('categoryId', 'name type');
-    
-    const response = {
-      id: transaction.id,
-      type: transaction.type,
-      amount: transaction.amount,
-      date: transaction.date,
-      note: transaction.note,
-      category: {
-        id: transaction.categoryId._id.toString(),
-        name: transaction.categoryId.name
-      },
-      source: transaction.source
-    };
 
     res.status(201).json({
-      id: transaction.id,
-      message: "Transaction created successfully"
+      message: "Transaction created successfully",
+      transaction: transaction,
     });
   } catch (error) {
-    console.error("Create transaction error:", error);
-    res.status(500).json({ 
-      message: "Failed to create transaction",
-      error: error.message 
-    });
+    next(error);
   }
 };
 
 // Get all transactions for a user
-export const getTransactions = async (req, res) => {
+export const getTransactions = async (req, res, next) => {
   try {
-    const { userId } = req.params;
-    
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
+    const userId = getCurrentUserId(req);
 
-    const transactions = await Transaction.find({ userId })
-      .populate('categoryId', 'name type')
-      .sort({ date: -1, createdAt: -1 });
+    const transactions = await Transaction.find({ userId }).populate("categoryId", "name type").sort({ date: -1, createdAt: -1 });
 
-    const formattedTransactions = transactions.map(transaction => ({
-      id: transaction.id,
-      type: transaction.type,
-      amount: transaction.amount,
-      date: transaction.date,
-      note: transaction.note,
-      category: {
-        id: transaction.categoryId._id.toString(),
-        name: transaction.categoryId.name
-      },
-      source: transaction.source
-    }));
-
-    res.json(formattedTransactions);
+    res.json(transactions);
   } catch (error) {
-    console.error("Get transactions error:", error);
-    res.status(500).json({ 
-      message: "Failed to fetch transactions",
-      error: error.message 
-    });
+    next(error);
   }
 };
 
 // Get a single transaction by ID
-export const getTransactionById = async (req, res) => {
+export const getTransactionById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
+    const userId = getCurrentUserId(req);
 
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
+    const transaction = await Transaction.findOne({ _id: id, userId }).populate("categoryId", "name type");
 
-    const transaction = await Transaction.findOne({ _id: id, userId })
-      .populate('categoryId', 'name type');
+    if (!transaction) throw new NotFoundError("Transaction not found");
 
-    if (!transaction) {
-      return res.status(404).json({ message: "Transaction not found" });
-    }
-
-    const response = {
-      id: transaction.id,
-      type: transaction.type,
-      amount: transaction.amount,
-      date: transaction.date,
-      note: transaction.note,
-      category: {
-        id: transaction.categoryId._id.toString(),
-        name: transaction.categoryId.name
-      },
-      source: transaction.source
-    };
-
-    res.json(response);
+    res.json(transaction);
   } catch (error) {
-    console.error("Get transaction by ID error:", error);
-    res.status(500).json({ 
-      message: "Failed to fetch transaction",
-      error: error.message 
-    });
+    next(error);
   }
 };
 
 // Update a transaction
-export const updateTransaction = async (req, res) => {
+export const updateTransaction = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
+    const userId = getCurrentUserId(req);
 
     const validationErrors = validateTransactionData(req.body);
     if (validationErrors.length > 0) {
-      return res.status(400).json({ 
-        message: "Validation failed", 
-        errors: validationErrors 
-      });
+      throw new ValidationError("Validation failed", validationErrors);
     }
 
-    const updateData = {
-      ...req.body,
-      date: req.body.date ? new Date(req.body.date) : undefined
-    };
+    // Ensure category belongs to this user
+    await assertCategoryOwnership(userId, req.body.categoryId);
 
-    const transaction = await Transaction.findOneAndUpdate(
-      { _id: id, userId },
-      updateData,
-      { new: true, runValidators: true }
-    ).populate('categoryId', 'name type');
+    const updateData = { ...req.body, date: req.body.date ? new Date(req.body.date) : undefined };
 
-    if (!transaction) {
-      return res.status(404).json({ message: "Transaction not found" });
-    }
+    const updated = await Transaction.findOneAndUpdate({ _id: id, userId }, updateData, { new: true, runValidators: true });
 
-    res.json({ message: "Transaction updated successfully" });
+    if (!updated) throw new NotFoundError("Transaction not found");
+
+    res.json({ message: "Transaction updated successfully", transaction: updated });
   } catch (error) {
-    console.error("Update transaction error:", error);
-    res.status(500).json({ 
-      message: "Failed to update transaction",
-      error: error.message 
-    });
+    next(error);
   }
 };
 
 // Delete a transaction
-export const deleteTransaction = async (req, res) => {
+export const deleteTransaction = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
+    const userId = getCurrentUserId(req);
 
     const transaction = await Transaction.findOneAndDelete({ _id: id, userId });
 
-    if (!transaction) {
-      return res.status(404).json({ message: "Transaction not found" });
-    }
+    if (!transaction) throw new NotFoundError("Transaction not found");
 
     res.json({ message: "Transaction deleted successfully" });
   } catch (error) {
-    console.error("Delete transaction error:", error);
-    res.status(500).json({ 
-      message: "Failed to delete transaction",
-      error: error.message 
-    });
+    next(error);
   }
 };

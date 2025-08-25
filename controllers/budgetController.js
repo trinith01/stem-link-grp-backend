@@ -1,378 +1,123 @@
 import Budget from "../models/Budget.js";
-import Transaction from "../models/Transaction.js";
-
-// Helper function to validate budget data
-const validateBudgetData = (data) => {
-  const errors = [];
-  
-  if (!data.limitAmount || typeof data.limitAmount !== 'number' || data.limitAmount <= 0) {
-    errors.push("Limit amount must be a positive number");
-  }
-  
-  if (!data.startDate) {
-    errors.push("Start date is required");
-  }
-  
-  if (!data.endDate) {
-    errors.push("End date is required");
-  }
-  
-  if (data.startDate && data.endDate) {
-    const startDate = new Date(data.startDate);
-    const endDate = new Date(data.endDate);
-    
-    if (startDate >= endDate) {
-      errors.push("End date must be after start date");
-    }
-  }
-  
-  if (!data.categoryId) {
-    errors.push("Category ID is required");
-  }
-  
-  if (!data.userId) {
-    errors.push("User ID is required");
-  }
-  
-  if (!data.name || data.name.trim() === '') {
-    errors.push("Budget name is required");
-  }
-  
-  return errors;
-};
+import ValidationError from "../domain/errors/validation-error.js";
+import { getCurrentUserId } from "../middlewares/authentication-middleware.js";
+import { getBudgetWithSpending } from "../services/budget-service.js";
+import NotFoundError from "../domain/errors/not-found-error.js";
+import { validateBudgetData } from "../utils/validation/validate-budget-data.js";
 
 // Create a new budget
-export const createBudget = async (req, res) => {
+export const createBudget = async (req, res, next) => {
   try {
+    const userId = getCurrentUserId(req);
+
     const validationErrors = validateBudgetData(req.body);
     if (validationErrors.length > 0) {
-      return res.status(400).json({ 
-        message: "Validation failed", 
-        errors: validationErrors 
-      });
+      throw new ValidationError("Validation failed", validationErrors);
     }
 
-    const budgetData = {
+    const budgetDoc = await Budget.create({
       ...req.body,
+      userId,
       startDate: new Date(req.body.startDate),
-      endDate: new Date(req.body.endDate)
-    };
-
-    const budget = await Budget.create(budgetData);
-    
-    // Populate category information for response
-    await budget.populate('categoryId', 'name type');
-    
-    const response = {
-      id: budget.id,
-      name: budget.name,
-      limitAmount: budget.limitAmount,
-      startDate: budget.startDate,
-      endDate: budget.endDate,
-      category: {
-        id: budget.categoryId._id.toString(),
-        name: budget.categoryId.name
-      },
-      description: budget.description,
-      isActive: budget.isActive,
-      remainingAmount: budget.remainingAmount,
-      spendingPercentage: budget.spendingPercentage
-    };
-
-    res.status(201).json({
-      message: "Budget created successfully",
-      budget: response
+      endDate: new Date(req.body.endDate),
     });
+
+    const budget = await getBudgetWithSpending(budgetDoc.id, userId);
+
+    res.status(201).json({ message: "Budget created successfully", budget });
   } catch (error) {
-    console.error("Create budget error:", error);
-    res.status(500).json({ 
-      message: "Failed to create budget",
-      error: error.message 
-    });
+    next(error);
   }
 };
 
-// Get all budgets for a user
-export const getBudgets = async (req, res) => {
+// Get all budgets
+export const getBudgets = async (req, res, next) => {
   try {
-    const { userId } = req.params;
+    const userId = getCurrentUserId(req);
     const { isActive } = req.query;
-    
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
 
     let query = { userId };
     if (isActive !== undefined) {
-      query.isActive = isActive === 'true';
+      query.isActive = isActive === "true";
     }
 
-    const budgets = await Budget.find(query)
-      .populate('categoryId', 'name type')
-      .sort({ startDate: -1, createdAt: -1 });
+    const budgetDocs = await Budget.find(query).populate("categoryId", "name type").sort({ startDate: -1 });
+    const budgets = await Promise.all(budgetDocs.map((b) => getBudgetWithSpending(b.id, userId)));
 
-    const formattedBudgets = budgets.map(budget => ({
-      id: budget.id,
-      name: budget.name,
-      limitAmount: budget.limitAmount,
-      startDate: budget.startDate,
-      endDate: budget.endDate,
-      category: {
-        id: budget.categoryId._id.toString(),
-        name: budget.categoryId.name
-      },
-      description: budget.description,
-      isActive: budget.isActive,
-      remainingAmount: budget.remainingAmount,
-      spendingPercentage: budget.spendingPercentage
-    }));
-
-    res.json(formattedBudgets);
+    res.json(budgets);
   } catch (error) {
-    console.error("Get budgets error:", error);
-    res.status(500).json({ 
-      message: "Failed to fetch budgets",
-      error: error.message 
-    });
+    next(error);
   }
 };
 
 // Get a single budget by ID
-export const getBudgetById = async (req, res) => {
+export const getBudgetById = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { userId } = req.query;
+    const userId = getCurrentUserId(req);
+    const budget = await getBudgetWithSpending(req.params.id, userId);
 
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
-
-    const budget = await Budget.findOne({ _id: id, userId })
-      .populate('categoryId', 'name type');
-
-    if (!budget) {
-      return res.status(404).json({ message: "Budget not found" });
-    }
-
-    const response = {
-      id: budget.id,
-      name: budget.name,
-      limitAmount: budget.limitAmount,
-      startDate: budget.startDate,
-      endDate: budget.endDate,
-      category: {
-        id: budget.categoryId._id.toString(),
-        name: budget.categoryId.name
-      },
-      description: budget.description,
-      isActive: budget.isActive,
-      remainingAmount: budget.remainingAmount,
-      spendingPercentage: budget.spendingPercentage
-    };
-
-    res.json(response);
+    res.json(budget);
   } catch (error) {
-    console.error("Get budget by ID error:", error);
-    res.status(500).json({ 
-      message: "Failed to fetch budget",
-      error: error.message 
-    });
+    next(error);
   }
 };
 
 // Update a budget
-export const updateBudget = async (req, res) => {
+export const updateBudget = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
+    const userId = getCurrentUserId(req);
 
     const validationErrors = validateBudgetData(req.body);
     if (validationErrors.length > 0) {
-      return res.status(400).json({ 
-        message: "Validation failed", 
-        errors: validationErrors 
-      });
+      throw new ValidationError("Validation failed", validationErrors);
     }
 
-    const updateData = {
-      ...req.body,
-      startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
-      endDate: req.body.endDate ? new Date(req.body.endDate) : undefined
-    };
-
-    const budget = await Budget.findOneAndUpdate(
+    await Budget.findOneAndUpdate(
       { _id: id, userId },
-      updateData,
-      { new: true, runValidators: true }
-    ).populate('categoryId', 'name type');
-
-    if (!budget) {
-      return res.status(404).json({ message: "Budget not found" });
-    }
-
-    const response = {
-      id: budget.id,
-      name: budget.name,
-      limitAmount: budget.limitAmount,
-      startDate: budget.startDate,
-      endDate: budget.endDate,
-      category: {
-        id: budget.categoryId._id.toString(),
-        name: budget.categoryId.name
+      {
+        ...req.body,
+        startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
+        endDate: req.body.endDate ? new Date(req.body.endDate) : undefined,
       },
-      description: budget.description,
-      isActive: budget.isActive,
-      remainingAmount: budget.remainingAmount,
-      spendingPercentage: budget.spendingPercentage
-    };
+      { new: true, runValidators: true }
+    );
 
-    res.json({ 
-      message: "Budget updated successfully",
-      budget: response
-    });
+    const updated = await getBudgetWithSpending(id, userId);
+
+    res.json({ message: "Budget updated successfully", budget: updated });
   } catch (error) {
-    console.error("Update budget error:", error);
-    res.status(500).json({ 
-      message: "Failed to update budget",
-      error: error.message 
-    });
+    next(error);
   }
 };
 
 // Delete a budget
-export const deleteBudget = async (req, res) => {
+export const deleteBudget = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
+    const userId = getCurrentUserId(req);
 
     const budget = await Budget.findOneAndDelete({ _id: id, userId });
 
-    if (!budget) {
-      return res.status(404).json({ message: "Budget not found" });
-    }
+    if (!budget) throw new NotFoundError("Budget not found");
 
     res.json({ message: "Budget deleted successfully" });
   } catch (error) {
-    console.error("Delete budget error:", error);
-    res.status(500).json({ 
-      message: "Failed to delete budget",
-      error: error.message 
-    });
+    next(error);
   }
 };
 
 // Get budget summary with spending analysis
-export const getBudgetSummary = async (req, res) => {
+export const getBudgetSummary = async (req, res, next) => {
   try {
-    const { userId } = req.params;
-    const { budgetId } = req.query;
+    const userId = getCurrentUserId(req);
+    const { id } = req.params;
+    if (!id) throw new NotFoundError("Budget ID is required");
 
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
+    const budget = await getBudgetWithSpending(id, userId);
 
-    if (!budgetId) {
-      return res.status(400).json({ message: "Budget ID is required" });
-    }
-
-    const budget = await Budget.findOne({ _id: budgetId, userId })
-      .populate('categoryId', 'name type');
-
-    if (!budget) {
-      return res.status(404).json({ message: "Budget not found" });
-    }
-
-    // Calculate actual spending for this budget period and category
-    const transactions = await Transaction.find({
-      userId,
-      categoryId: budget.categoryId._id,
-      date: {
-        $gte: budget.startDate,
-        $lte: budget.endDate
-      },
-      type: 'expense'
-    });
-
-    const totalSpent = transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
-    const remainingAmount = budget.limitAmount - totalSpent;
-    const spendingPercentage = (totalSpent / budget.limitAmount) * 100;
-
-    const summary = {
-      id: budget.id,
-      name: budget.name,
-      limitAmount: budget.limitAmount,
-      startDate: budget.startDate,
-      endDate: budget.endDate,
-      category: {
-        id: budget.categoryId._id.toString(),
-        name: budget.categoryId.name
-      },
-      totalSpent,
-      remainingAmount,
-      spendingPercentage: Math.round(spendingPercentage * 100) / 100,
-      isOverBudget: totalSpent > budget.limitAmount,
-      transactionsCount: transactions.length
-    };
-
-    res.json(summary);
+    res.json(budget);
   } catch (error) {
-    console.error("Get budget summary error:", error);
-    res.status(500).json({ 
-      message: "Failed to fetch budget summary",
-      error: error.message 
-    });
-  }
-};
-
-// Get active budgets for a user
-export const getActiveBudgets = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
-
-    const currentDate = new Date();
-    
-    const budgets = await Budget.find({
-      userId,
-      isActive: true,
-      startDate: { $lte: currentDate },
-      endDate: { $gte: currentDate }
-    })
-    .populate('categoryId', 'name type')
-    .sort({ endDate: 1 });
-
-    const formattedBudgets = budgets.map(budget => ({
-      id: budget.id,
-      name: budget.name,
-      limitAmount: budget.limitAmount,
-      startDate: budget.startDate,
-      endDate: budget.endDate,
-      category: {
-        id: budget.categoryId._id.toString(),
-        name: budget.categoryId.name
-      },
-      description: budget.description,
-      remainingAmount: budget.remainingAmount,
-      spendingPercentage: budget.spendingPercentage
-    }));
-
-    res.json(formattedBudgets);
-  } catch (error) {
-    console.error("Get active budgets error:", error);
-    res.status(500).json({ 
-      message: "Failed to fetch active budgets",
-      error: error.message 
-    });
+    next(error);
   }
 };
