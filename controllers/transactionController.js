@@ -4,6 +4,7 @@ import { assertCategoryOwnership } from "../utils/ownership/assert-category-owne
 import NotFoundError from "../domain/errors/not-found-error.js";
 import ValidationError from "../domain/errors/validation-error.js";
 import { validateTransactionData } from "../utils/validation/validate-transaction-data.js";
+import { markReceiptProcessed, markReceiptUnprocessed } from "../services/receipt-service.js";
 
 // Create a new transaction
 export const createTransaction = async (req, res, next) => {
@@ -25,6 +26,11 @@ export const createTransaction = async (req, res, next) => {
     };
 
     const transaction = await Transaction.create(transactionData);
+
+    // If transaction is linked to a receipt, mark it processed
+    if (transaction.receiptId) {
+      await markReceiptProcessed(transaction.receiptId, userId);
+    }
 
     res.status(201).json({
       message: "Transaction created successfully",
@@ -99,6 +105,11 @@ export const deleteTransaction = async (req, res, next) => {
     const transaction = await Transaction.findOneAndDelete({ _id: id, userId });
 
     if (!transaction) throw new NotFoundError("Transaction not found");
+
+    // If transaction is linked to a receipt, mark it unprocessed
+    if (transaction.receiptId) {
+      await markReceiptUnprocessed(transaction.receiptId, userId);
+    }
 
     res.json({ message: "Transaction deleted successfully" });
   } catch (error) {
