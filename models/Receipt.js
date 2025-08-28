@@ -6,6 +6,7 @@ const ReceiptSchema = new mongoose.Schema(
     amountDetected: { type: Number, default: 0 },
     context: { type: String, default: "", trim: true },
     transactionDate: { type: Date },
+    fileUrl: { type: String, required: true },
     isProcessed: { type: Boolean, default: false },
     userId: { type: String, required: true, index: true },
     draftTransaction: { type: Object, default: null },
