@@ -8,6 +8,7 @@ import globalErrorHandlingMiddleware from "./middlewares/global-error-handling-m
 import transactionRoutes from "./routes/transactionRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import budgetRoutes from "./routes/budgetRoutes.js";
+import receiptRoutes from "./routes/receiptRoutes.js";
 
 dotenv.config(); // Loads env variables
 connectDB(); // Calls function to connect the database
@@ -21,6 +22,7 @@ app.use("/api", testRoutes);
 app.use("/api", transactionRoutes);
 app.use("/api", categoryRoutes);
 app.use("/api", budgetRoutes);
+app.use("/api", receiptRoutes);
 
 // Global error handler 
 app.use(globalErrorHandlingMiddleware);
