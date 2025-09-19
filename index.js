@@ -9,6 +9,7 @@ import transactionRoutes from "./routes/transactionRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import budgetRoutes from "./routes/budgetRoutes.js";
 import receiptRoutes from "./routes/receiptRoutes.js";
+import reminderRoutes from "./routes/reminderRoutes.js";
 
 dotenv.config(); // Loads env variables
 connectDB(); // Calls function to connect the database
@@ -23,6 +24,7 @@ app.use("/api", transactionRoutes);
 app.use("/api", categoryRoutes);
 app.use("/api", budgetRoutes);
 app.use("/api", receiptRoutes);
+app.use("/api", reminderRoutes);
 
 // Global error handler 
 app.use(globalErrorHandlingMiddleware);

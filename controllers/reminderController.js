@@ -7,9 +7,10 @@ import { formatReminder } from "../utils/formatters/format-reminder.js";
 
 // Create a new reminder
 export const createReminder = async (req, res, next) => {
+  // Auto-generated reminders won't go through createReminder
   try {
     const userId = getCurrentUserId(req);
-    const { title, description, dueDate, priority, category } = req.body;
+    const { title, description, dueDate, isRecurring, frequency, recurrenceInterval, type } = req.body;
 
     const validationErrors = validateReminderData({
       title,
@@ -30,6 +31,8 @@ export const createReminder = async (req, res, next) => {
       isRecurring: isRecurring || false,
       frequency: isRecurring ? frequency : null,
       recurrenceInterval: isRecurring && frequency === "custom" ? recurrenceInterval : null,
+      lastTriggeredDate: isRecurring ? new Date() : null,
+      type: type || "manual",
       userId,
     });
 
@@ -54,16 +57,13 @@ export const getReminders = async (req, res, next) => {
       query.dueDate = { $gte: new Date() };
     }
 
-    let reminders = await Reminder.find(query).sort({
-      dueDate: 1,
-    });
+    let reminders = await Reminder.find(query).sort({ date: -1, createdAt: -1 });
 
     res.json(reminders.map(formatReminder));
   } catch (error) {
     next(error);
   }
 };
-
 
 // Get a single reminder by ID
 export const getReminderById = async (req, res, next) => {
@@ -94,4 +94,3 @@ export const deleteReminder = async (req, res, next) => {
     next(error);
   }
 };
-

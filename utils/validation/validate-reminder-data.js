@@ -1,4 +1,4 @@
-export const validateReminderData = (data) => {
+export const validateReminderData = (data, { allowPastDue = false } = {}) => {
   const errors = [];
 
   if (!data.title || data.title.trim().length === 0) {
@@ -13,7 +13,7 @@ export const validateReminderData = (data) => {
 
   if (!data.dueDate) {
     errors.push("Due date is required");
-  } else if (new Date(data.dueDate) < new Date()) {
+  } else if (!allowPastDue && new Date(data.dueDate) < new Date()) {
     errors.push("Due date cannot be in the past");
   }
 

@@ -9,6 +9,7 @@ export const formatReminder = (reminder) => {
     recurrenceInterval: reminder.recurrenceInterval,
     lastTriggeredDate: reminder.lastTriggeredDate,
     userId: reminder.userId,
+    type: reminder.type,
     createdAt: reminder.createdAt,
     updatedAt: reminder.updatedAt,
   };

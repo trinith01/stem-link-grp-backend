@@ -5,6 +5,8 @@ import NotFoundError from "../domain/errors/not-found-error.js";
 import ValidationError from "../domain/errors/validation-error.js";
 import { validateTransactionData } from "../utils/validation/validate-transaction-data.js";
 import { markReceiptProcessed, markReceiptUnprocessed } from "../services/receipt-service.js";
+import Budget from "../models/Budget.js";
+import { checkBudgetAndCreateReminders } from "../services/budget-service.js";
 
 // Create a new transaction
 export const createTransaction = async (req, res, next) => {
@@ -30,6 +32,20 @@ export const createTransaction = async (req, res, next) => {
     // If transaction is linked to a receipt, mark it processed
     if (transaction.receiptId) {
       await markReceiptProcessed(transaction.receiptId, userId);
+    }
+
+    // Find budgets for this category that are active in this date range
+    const budgets = await Budget.find({
+      userId,
+      categoryId: req.body.categoryId,
+      isActive: true,
+      startDate: { $lte: transaction.date },
+      endDate: { $gte: transaction.date }
+    });
+
+    // For each budget create relevant reminders
+    for (const budget of budgets) {
+      await checkBudgetAndCreateReminders(budget.id, userId);
     }
 
     res.status(201).json({
@@ -87,6 +103,19 @@ export const updateTransaction = async (req, res, next) => {
     const updateData = { ...req.body, date: req.body.date ? new Date(req.body.date) : undefined };
 
     const updated = await Transaction.findOneAndUpdate({ _id: id, userId }, updateData, { new: true, runValidators: true });
+
+    // Find budgets for this category that are active in this date range
+    const budgets = await Budget.find({
+      userId,
+      categoryId: req.body.categoryId,
+      isActive: true,
+      startDate: { $lte: updated.date },
+      endDate: { $gte: updated.date }
+    });
+
+    for (const budget of budgets) {
+      await checkBudgetAndCreateReminders(budget.id, userId);
+    }
 
     if (!updated) throw new NotFoundError("Transaction not found");
 

@@ -1,7 +1,7 @@
 import Budget from "../models/Budget.js";
 import ValidationError from "../domain/errors/validation-error.js";
 import { getCurrentUserId } from "../middlewares/authentication-middleware.js";
-import { getBudgetWithSpending } from "../services/budget-service.js";
+import { getBudgetWithSpending, checkBudgetAndCreateReminders } from "../services/budget-service.js";
 import NotFoundError from "../domain/errors/not-found-error.js";
 import { validateBudgetData } from "../utils/validation/validate-budget-data.js";
 
@@ -15,6 +15,21 @@ export const createBudget = async (req, res, next) => {
       throw new ValidationError("Validation failed", validationErrors);
     }
 
+    // Check for existing budget in same category & date range
+    const existingBudget = await Budget.findOne({
+      userId,
+      categoryId: req.body.categoryId,
+      startDate: new Date(req.body.startDate),
+      endDate: new Date(req.body.endDate),
+      isActive: true
+    });
+
+    if (existingBudget) {
+      throw new ValidationError("A budget for this category already exists", [
+        { field: "categoryId", message: "Duplicate budget detected" }
+      ]);
+    }
+
     const budgetDoc = await Budget.create({
       ...req.body,
       userId,
@@ -22,7 +37,7 @@ export const createBudget = async (req, res, next) => {
       endDate: new Date(req.body.endDate),
     });
 
-    const budget = await getBudgetWithSpending(budgetDoc.id, userId);
+    const budget = await checkBudgetAndCreateReminders(budgetDoc.id, userId);
 
     res.status(201).json({ message: "Budget created successfully", budget });
   } catch (error) {
@@ -41,7 +56,8 @@ export const getBudgets = async (req, res, next) => {
       query.isActive = isActive === "true";
     }
 
-    const budgetDocs = await Budget.find(query).populate("categoryId", "name type").sort({ startDate: -1 });
+    const budgetDocs = await Budget.find(query).populate("categoryId", "name type")
+                                               .sort({ startDate: -1 });
     const budgets = await Promise.all(budgetDocs.map((b) => getBudgetWithSpending(b.id, userId)));
 
     res.json(budgets);
@@ -73,6 +89,21 @@ export const updateBudget = async (req, res, next) => {
       throw new ValidationError("Validation failed", validationErrors);
     }
 
+    // Check for existing budget in same category & date range
+    const existingBudget = await Budget.findOne({
+      userId,
+      categoryId: req.body.categoryId,
+      startDate: new Date(req.body.startDate),
+      endDate: new Date(req.body.endDate),
+      isActive: true
+    });
+
+    if (existingBudget) {
+      throw new ValidationError("A budget for this category already exists", [
+        { field: "categoryId", message: "Duplicate budget detected" }
+      ]);
+    }
+
     await Budget.findOneAndUpdate(
       { _id: id, userId },
       {
@@ -83,7 +114,7 @@ export const updateBudget = async (req, res, next) => {
       { new: true, runValidators: true }
     );
 
-    const updated = await getBudgetWithSpending(id, userId);
+    const updated = await checkBudgetAndCreateReminders(id, userId);
 
     res.json({ message: "Budget updated successfully", budget: updated });
   } catch (error) {
