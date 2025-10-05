@@ -1,5 +1,5 @@
 import express from "express";
-import { createTransaction, getTransactions, getTransactionById, updateTransaction, deleteTransaction } from "../controllers/transactionController.js";
+import { createTransaction, getTransactions, getTransactionById, updateTransaction, deleteTransaction, getMonthlySummary, getChartData } from "../controllers/transactionController.js";
 import { isAuthenticated } from "../middlewares/authentication-middleware.js";
 
 const router = express.Router();
@@ -9,6 +9,12 @@ router.post("/transactions", isAuthenticated, createTransaction);
 
 // Get all transactions for a user
 router.get("/transactions", isAuthenticated, getTransactions);
+
+// Get summary of all transactions in a given date
+router.get("/transactions/summary", isAuthenticated, getMonthlySummary);
+
+// Get chart data of all transactions in a given date
+router.get("/transactions/chart", isAuthenticated, getChartData);
 
 // Get a single transaction by ID
 router.get("/transactions/:id", isAuthenticated, getTransactionById);

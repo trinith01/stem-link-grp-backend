@@ -19,7 +19,9 @@ export const extractReceiptData = async (imageBuffer) => {
     - 'type' is "income" if amount is positive, "expense" if purchase.
     - 'categoryId' is just a placeholder now, to be replaced client-side.
     - 'note' should not be longer than 6 words.
-    - If a field is not found, set it to null.
+    - 'merchantName' must be in sentence case.
+    - If 'date' is not found, set it to current date.
+    - If any other field is not found, set it to null.
     - No markdown, no extra text, no code fences, no comments.
   `;
 

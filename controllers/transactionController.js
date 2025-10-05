@@ -7,6 +7,7 @@ import { validateTransactionData } from "../utils/validation/validate-transactio
 import { markReceiptProcessed, markReceiptUnprocessed } from "../services/receipt-service.js";
 import Budget from "../models/Budget.js";
 import { checkBudgetAndCreateReminders } from "../services/budget-service.js";
+import { getChartDataForUser, getMonthlySummaryForUser } from "../services/transaction-service.js";
 
 // Create a new transaction
 export const createTransaction = async (req, res, next) => {
@@ -61,8 +62,23 @@ export const createTransaction = async (req, res, next) => {
 export const getTransactions = async (req, res, next) => {
   try {
     const userId = getCurrentUserId(req);
+    const { month, year, type } = req.query;
 
-    const transactions = await Transaction.find({ userId }).populate("categoryId", "name type").sort({ date: -1, createdAt: -1 });
+    const filter = { userId };
+
+    // Optional type filter (income/expense)
+    if (type) {
+      filter.type = type;
+    }
+
+    // Optional month/year filter
+    if (month && year) {
+      const startDate = new Date(year, month - 1, 1); // month is 0-indexed
+      const endDate = new Date(year, month, 1); // next month
+      filter.date = { $gte: startDate, $lt: endDate };
+    }
+
+    const transactions = await Transaction.find(filter).populate("categoryId", "name type").sort({ date: -1, createdAt: -1 });
 
     res.json(transactions);
   } catch (error) {
@@ -141,6 +157,36 @@ export const deleteTransaction = async (req, res, next) => {
     }
 
     res.json({ message: "Transaction deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get monthly stats for all transactions
+export const getMonthlySummary = async (req, res, next) => {
+  try {
+    const userId = getCurrentUserId(req);
+    const { month, year } = req.query;
+
+    // calculate the monthly summary
+    const summary = await getMonthlySummaryForUser(userId, month, year);
+
+    res.json(summary);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get data for financial chart
+export const getChartData = async (req, res, next) => {
+  try {
+    const userId = getCurrentUserId(req);
+    const { month, year, type } = req.query;
+
+    // calculate chart-specific data
+    const chartData = await getChartDataForUser(userId, month, year, type);
+
+    res.json(chartData);
   } catch (error) {
     next(error);
   }

@@ -2,7 +2,8 @@ import Receipt from "../models/Receipt.js";
 import { extractReceiptData } from "../services/ocrService.js";
 import { getCurrentUserId } from "../middlewares/authentication-middleware.js";
 import ValidationError from "../domain/errors/validation-error.js";
-import { unlinkReceiptFromTransaction } from "../services/receipt-service.js";
+import { findReceiptById, findReceiptsForUser, unlinkReceiptFromTransaction } from "../services/receipt-service.js";
+import NotFoundError from "../domain/errors/not-found-error.js";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { s3 } from "../middlewares/s3-upload-middleware.js";
 
@@ -64,7 +65,7 @@ export const getAllReceipts = async (req, res, next) => {
     const userId = getCurrentUserId(req);
 
     // Filter by most recent: first
-    const receipts = await Receipt.find({ userId }).sort({ createdAt: -1 });
+    const receipts = await findReceiptsForUser(userId);
 
     res.json(receipts); // Return all receipts
   } catch (err) {
@@ -79,7 +80,7 @@ export const getReceiptById = async (req, res, next) => {
     const userId = getCurrentUserId(req);
 
     // Find receipt by Id, user ID
-    const receipt = await Receipt.findOne({ _id: id, userId });
+    const receipt = await findReceiptById(userId, req.params.id);
     // If no match was found
     if (!receipt) throw new NotFoundError("Receipt not found");
 

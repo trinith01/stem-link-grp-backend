@@ -49,7 +49,7 @@ CategorySchema.set('toJSON', {
 });
 
 // Composite index: Ensures one user can’t have 2 categories with same name (case-insensitive).
-CategorySchema.index({ userId: 1, nameLower: 1 }, { unique: true });
+CategorySchema.index({ userId: 1, nameLower: 1, type: 1 }, { unique: true });
 
 // Ensure nameLower stays in sync on create/update
 CategorySchema.pre("save", function (next) {

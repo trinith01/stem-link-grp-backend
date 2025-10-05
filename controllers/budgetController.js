@@ -95,7 +95,8 @@ export const updateBudget = async (req, res, next) => {
       categoryId: req.body.categoryId,
       startDate: new Date(req.body.startDate),
       endDate: new Date(req.body.endDate),
-      isActive: true
+      isActive: true,
+      _id: { $ne: id } 
     });
 
     if (existingBudget) {
